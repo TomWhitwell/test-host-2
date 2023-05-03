@@ -1204,9 +1204,9 @@ async function render_response({
     }
   }
   const { client } = manifest._;
-  const modulepreloads = /* @__PURE__ */ new Set([...client.start.imports, ...client.app.imports]);
-  const stylesheets = new Set(client.app.stylesheets);
-  const fonts = new Set(client.app.fonts);
+  const modulepreloads = new Set(client.imports);
+  const stylesheets = new Set(client.stylesheets);
+  const fonts = new Set(client.fonts);
   const link_header_preloads = /* @__PURE__ */ new Set();
   const inline_styles = /* @__PURE__ */ new Map();
   let rendered;
@@ -1400,8 +1400,8 @@ async function render_response({
 						}`);
     }
     blocks.push(`Promise.all([
-						import(${s(prefixed(client.start.file))}),
-						import(${s(prefixed(client.app.file))})
+						import(${s(prefixed(client.start))}),
+						import(${s(prefixed(client.app))})
 					]).then(([kit, app]) => {
 						kit.start(${args.join(", ")});
 					});`);
@@ -2498,7 +2498,7 @@ async function respond(request, options2, manifest, state) {
     preload: default_preload
   };
   try {
-    if (route && !is_data_request) {
+    if (route) {
       if (url.pathname === base || url.pathname === base + "/") {
         trailing_slash = "always";
       } else if (route.page) {
@@ -2516,18 +2516,20 @@ async function respond(request, options2, manifest, state) {
         if (DEV)
           ;
       }
-      const normalized = normalize_path(url.pathname, trailing_slash ?? "never");
-      if (normalized !== url.pathname && !state.prerendering?.fallback) {
-        return new Response(void 0, {
-          status: 308,
-          headers: {
-            "x-sveltekit-normalize": "1",
-            location: (
-              // ensure paths starting with '//' are not treated as protocol-relative
-              (normalized.startsWith("//") ? url.origin + normalized : normalized) + (url.search === "?" ? "" : url.search)
-            )
-          }
-        });
+      if (!is_data_request) {
+        const normalized = normalize_path(url.pathname, trailing_slash ?? "never");
+        if (normalized !== url.pathname && !state.prerendering?.fallback) {
+          return new Response(void 0, {
+            status: 308,
+            headers: {
+              "x-sveltekit-normalize": "1",
+              location: (
+                // ensure paths starting with '//' are not treated as protocol-relative
+                (normalized.startsWith("//") ? url.origin + normalized : normalized) + (url.search === "?" ? "" : url.search)
+              )
+            }
+          });
+        }
       }
     }
     const { cookies, new_cookies, get_cookie_header } = get_cookies(
@@ -2713,8 +2715,7 @@ class Server {
         const module = await get_hooks();
         this.#options.hooks = {
           handle: module.handle || (({ event, resolve }) => resolve(event)),
-          // @ts-expect-error
-          handleError: module.handleError || (({ error: error2 }) => console.error(error2?.stack)),
+          handleError: module.handleError || (({ error: error2 }) => console.error(error2)),
           handleFetch: module.handleFetch || (({ request, fetch: fetch2 }) => fetch2(request))
         };
       } catch (error2) {
